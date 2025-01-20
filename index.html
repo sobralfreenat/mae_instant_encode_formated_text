@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>M.A.E. Instantâneo</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f4f4;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+        }
+
+        .container {
+            background-color: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            width: 100%;
+            max-width: 800px;
+        }
+
+        h1 {
+            font-size: 24px;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: bold;
+        }
+
+        textarea {
+            width: 100%;
+            padding: 10px;
+            margin-bottom: 20px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            font-size: 16px;
+            height: 150px;
+            resize: vertical;
+        }
+
+        button {
+            width: 100%;
+            padding: 10px;
+            background-color: #28a745;
+            color: #fff;
+            border: none;
+            border-radius: 4px;
+            font-size: 16px;
+            cursor: pointer;
+            margin-bottom: 10px;
+        }
+
+        button:hover {
+            background-color: #218838;
+        }
+
+        .result {
+            margin-top: 20px;
+            padding: 15px;
+            background-color: #e9ecef;
+            border-radius: 4px;
+            display: none;
+        }
+
+        .result h2 {
+            font-size: 20px;
+            margin-bottom: 10px;
+        }
+
+        #jsonOutput {
+            font-size: 16px;
+            line-height: 1.6;
+            white-space: pre-wrap;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 10px;
+            margin-top: 10px;
+        }
+
+        .button-group button {
+            flex: 1;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>M.A.E. Instantâneo</h1>
+
+        <label for="unformattedText">Cole o texto formatado aqui:</label>
+        <textarea id="unformattedText" placeholder="Cole o texto entre os ____ ____"></textarea>
+        <button id="generateJsonButton">Gerar JSON</button>
+
+        <div id="jsonResult" class="result">
+            <h2>JSON Gerado:</h2>
+            <pre id="jsonOutput"></pre>
+
+            <div class="button-group">
+                <button id="copyJsonButton">Copiar JSON</button>
+                <button id="saveJsonButton">Salvar JSON</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const irrelevantWords = new Set(["o", "a", "os", "as", "de", "do", "da", "dos", "das", "em", "no", "na", "nos", "nas", "por", "para", "com", "sem", "que"]);
+
+        // Função para formatar o título em "Title Case"
+        function toTitleCase(str) {
+            return str.replace(/\w\S*/g, (word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase());
+        }
+
+        // Função para extrair o contexto geral com até 3 palavras significativas
+        function extractContext(text) {
+            const words = text.split(" ").filter(word => word.trim() !== "" && !irrelevantWords.has(word.toLowerCase()));
+            return words.slice(0, 3).join(" ");
+        }
+
+        // Função para limpar e validar a categoria
+        function cleanCategory(category) {
+            const cleaned = category.replace(/[^a-zA-ZÀ-ú\s]/g, "").trim();
+            return cleaned.length >= 3 ? cleaned.toUpperCase() : "GERAL";
+        }
+
+        // Função para determinar a categoria com base no conteúdo
+        function determineCategory(title, description, previousCategories) {
+            const lowerTitle = title.toLowerCase();
+            const lowerDescription = description.toLowerCase();
+
+            const keywords = {
+                "ANÁLISE": ["checar", "nc", "verificar", "analisar", "testar", "sistema", "funcionamento", "problema", "erro", "diagnóstico"],
+                "GESTÃO": ["gestão", "tm", "gerenciar", "equipe", "projeto", "planejamento", "recursos", "reunião", "relatório", "organização"],
+                "DESENVOLVIMENTO": ["ml", "desenvolvimento", "código", "funcionalidade", "programar", "software", "aplicação", "implementar", "tecnologia", "solução"],
+                "VALIDAÇÃO": ["pmf", "validação", "usuário", "teste", "feedback", "produto", "aceitação", "qualidade", "avaliação", "aprovado"],
+                "INTEGRAÇÃO": ["mms", "integração", "api", "sistema", "conectar", "serviços", "plataforma", "dados", "comunicação", "interface"]
+            };
+
+            for (const [category, terms] of Object.entries(keywords)) {
+                if (terms.some(term => lowerTitle.includes(term) || lowerDescription.includes(term))) {
+                    return category;
+                }
+            }
+
+            const firstWord = title.split(" ")[0];
+            return cleanCategory(firstWord);
+        }
+
+        // Função para aplicar o prompt e gerar JSON
+        function generateJsonFromText(text) {
+            const sections = text.split("\n").filter(line => line.trim() !== "");
+            const jsonData = {};
+            const previousCategories = new Set();
+
+            sections.forEach((section, index) => {
+                const key = `02-${index.toString().padStart(2, "0")}`;
+
+                const colonIndex = section.indexOf(":");
+                const titlePart = colonIndex !== -1 ? section.slice(0, colonIndex).trim() : section.trim();
+                const description = colonIndex !== -1 ? section.slice(colonIndex + 1).trim() : "";
+
+                const title = toTitleCase(extractContext(description || titlePart));
+                const url = "https://exemplo.com/" + title.toLowerCase().replace(/ /g, "-");
+                const category = determineCategory(title, description || titlePart, previousCategories);
+                previousCategories.add(category);
+
+                jsonData[key] = {
+                    title: title,
+                    description: description || titlePart,
+                    url,
+                    category: category.toUpperCase()
+                };
+            });
+
+            return jsonData;
+        }
+
+        // Gerar JSON a partir do texto não formatado
+        document.getElementById('generateJsonButton').addEventListener('click', function () {
+            const unformattedText = document.getElementById('unformattedText').value;
+
+            // Aplica o prompt para gerar o JSON
+            const jsonData = generateJsonFromText(unformattedText);
+
+            // Exibe o JSON gerado
+            document.getElementById('jsonOutput').textContent = JSON.stringify(jsonData, null, 2);
+            document.getElementById('jsonResult').style.display = 'block';
+        });
+
+        // Copiar JSON para a área de transferência
+        document.getElementById('copyJsonButton').addEventListener('click', function () {
+            const jsonOutput = document.getElementById('jsonOutput').textContent;
+            navigator.clipboard.writeText(jsonOutput).then(() => {
+                alert("JSON copiado para a área de transferência!");
+            }).catch(() => {
+                alert("Erro ao copiar o JSON.");
+            });
+        });
+
+        // Salvar JSON em um arquivo
+        document.getElementById('saveJsonButton').addEventListener('click', function () {
+            const jsonOutput = document.getElementById('jsonOutput').textContent;
+
+            // Verifica se há conteúdo para salvar
+            if (!jsonOutput) {
+                alert("Nenhum JSON gerado para salvar.");
+                return;
+            }
+
+            // Extrai o contexto para o nome do arquivo
+            const context = extractContext(document.getElementById('unformattedText').value);
+            const fileName = context ? `M.A.E_${context.replace(/ /g, "_")}.json` : "M.A.E_GERAL.json";
+
+            // Cria o Blob e o URL
+            const blob = new Blob([jsonOutput], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+
+            // Cria um link temporário para download
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = fileName;
+            document.body.appendChild(a); // Adiciona ao DOM
+            a.click(); // Aciona o download
+            document.body.removeChild(a); // Remove do DOM
+
+            // Libera o objeto URL
+            URL.revokeObjectURL(url);
+        });
+    </script>
+</body>
+</html>
